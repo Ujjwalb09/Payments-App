@@ -20,7 +20,7 @@ router.post("/signup", async (req, res) => {
     });
   else if (!passResponse.success)
     return res.json({
-      message: "Password should be of more than 6 characters",
+      message: "Password should be of 6 or more characters",
     });
 
   const newUser = new User({
@@ -48,7 +48,7 @@ router.post("/signup", async (req, res) => {
   });
 });
 
-router.post("/signin", authMiddleware, async (req, res) => {
+router.post("/signin", async (req, res) => {
   const user = await User.findOne({ username: req.body.username });
 
   // checking if user exists in DB
@@ -63,9 +63,48 @@ router.post("/signin", authMiddleware, async (req, res) => {
       message: "Incorrect Password",
     });
 
-  const token = jwt.sign({ username: user.username }, JWT_SECRET);
+  const token = "Bearer " + jwt.sign({ username: user.username }, JWT_SECRET);
 
   res.status(200).json({ message: "User Successfully Logged In", token });
+});
+
+router.put("/update", authMiddleware, async (req, res) => {
+  const username = req.username;
+
+  //zod validation of password
+  const passResponse = passSchema.safeParse(req.body.password);
+
+  if (!passResponse.success)
+    return res
+      .status(404)
+      .json({ message: "Password should be of 6 or more characters" });
+
+  const user = await User.findOne({ username });
+
+  //checking if last password is same
+  if (await user.validatePassword(req.body.password))
+    return res
+      .status(404)
+      .json({ message: "Password should not be same as last password" });
+
+  const updated = {
+    password: req.body.password,
+    firstName: req.body.firstName,
+    lastName: req.body.lastName,
+  };
+
+  //creating hashed password
+  const hashedPassword = await user.createHash(updated.password);
+
+  await user.updateOne({
+    $set: {
+      password: hashedPassword,
+      firstName: updated.firstName,
+      lastName: updated.lastName,
+    },
+  });
+
+  res.json({ message: "successfully updated" });
 });
 
 module.exports = router;
