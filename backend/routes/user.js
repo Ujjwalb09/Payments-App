@@ -32,7 +32,8 @@ router.post("/signup", async (req, res) => {
   const hashedPassword = await newUser.createHash(req.body.password);
   newUser.password = hashedPassword;
 
-  const token = jwt.sign({ username: req.body.username }, JWT_SECRET);
+  const token =
+    "Bearer " + jwt.sign({ username: req.body.username }, JWT_SECRET);
 
   try {
     await newUser.save();
@@ -105,6 +106,24 @@ router.put("/update", authMiddleware, async (req, res) => {
   });
 
   res.json({ message: "successfully updated" });
+});
+
+router.get("/bulk", authMiddleware, async (req, res) => {
+  const { filter } = req.query;
+
+  const searchName = filter;
+
+  const users = await User.find();
+
+  const searchResult = users
+    .filter((user) => user.firstName.toLowerCase() === searchName)
+    .map((user) => ({
+      firstName: user.firstName,
+      lastName: user.lastName,
+      id: user._id,
+    }));
+
+  res.status(202).json({ users: searchResult });
 });
 
 module.exports = router;
