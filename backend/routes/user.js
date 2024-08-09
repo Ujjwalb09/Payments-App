@@ -72,38 +72,31 @@ router.post("/signin", async (req, res) => {
 router.put("/update", authMiddleware, async (req, res) => {
   const username = req.username;
 
-  //zod validation of password
-  const passResponse = passSchema.safeParse(req.body.password);
-
-  if (!passResponse.success)
-    return res
-      .status(404)
-      .json({ message: "Password should be of 6 or more characters" });
-
   const user = await User.findOne({ username });
 
-  //checking if last password is same
-  if (await user.validatePassword(req.body.password))
-    return res
-      .status(404)
-      .json({ message: "Password should not be same as last password" });
+  let hashedPassword = null;
 
-  const updated = {
-    password: req.body.password,
-    firstName: req.body.firstName,
-    lastName: req.body.lastName,
-  };
+  if (req.body.password) {
+    //zod validation of password
+    const passResponse = passSchema.safeParse(req.body.password);
 
-  //creating hashed password
-  const hashedPassword = await user.createHash(updated.password);
+    if (!passResponse.success)
+      return res
+        .status(404)
+        .json({ message: "Password should be of 6 or more characters" });
 
-  await user.updateOne({
-    $set: {
-      password: hashedPassword,
-      firstName: updated.firstName,
-      lastName: updated.lastName,
-    },
-  });
+    //checking if last password is same
+    if (await user.validatePassword(req.body.password))
+      return res
+        .status(404)
+        .json({ message: "Password should not be same as last password" });
+
+    //creating hashed password
+    hashedPassword = await user.createHash(req.body.password);
+    req.body.password = hashedPassword;
+  }
+
+  await user.updateOne(req.body);
 
   res.json({ message: "successfully updated" });
 });
@@ -111,12 +104,18 @@ router.put("/update", authMiddleware, async (req, res) => {
 router.get("/bulk", authMiddleware, async (req, res) => {
   const { filter } = req.query;
 
-  const searchName = filter;
+  const searchName = filter.toLowerCase();
 
   const users = await User.find();
 
   const searchResult = users
-    .filter((user) => user.firstName.toLowerCase() === searchName)
+    .filter(
+      (user) =>
+        user.firstName.toLowerCase() === searchName ||
+        user.lastName.toLowerCase() === searchName ||
+        searchName ===
+          user.firstName.toLowerCase() + " " + user.lastName.toLowerCase()
+    )
     .map((user) => ({
       firstName: user.firstName,
       lastName: user.lastName,
