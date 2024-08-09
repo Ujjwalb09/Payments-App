@@ -74,6 +74,8 @@ router.put("/update", authMiddleware, async (req, res) => {
 
   const user = await User.findOne({ username });
 
+  console.log(user);
+
   let hashedPassword = null;
 
   if (req.body.password) {
@@ -104,23 +106,32 @@ router.put("/update", authMiddleware, async (req, res) => {
 router.get("/bulk", authMiddleware, async (req, res) => {
   const { filter } = req.query;
 
-  const searchName = filter.toLowerCase();
+  const searchName = filter;
+  const nameParts = searchName.split(" ");
 
-  const users = await User.find();
+  let query = {};
 
-  const searchResult = users
-    .filter(
-      (user) =>
-        user.firstName.toLowerCase() === searchName ||
-        user.lastName.toLowerCase() === searchName ||
-        searchName ===
-          user.firstName.toLowerCase() + " " + user.lastName.toLowerCase()
-    )
-    .map((user) => ({
-      firstName: user.firstName,
-      lastName: user.lastName,
-      id: user._id,
-    }));
+  if (nameParts.length == 2) {
+    //if I am getting both first and last name
+    const [firstName, lastName] = nameParts;
+
+    query = {
+      firstName: new RegExp(firstName, "i"),
+      lastName: new RegExp(lastName, "i"),
+    };
+  } else if (nameParts.length == 1) {
+    //if I am getting either first or last name
+    const name = nameParts[0];
+
+    query = {
+      $or: [
+        { firstName: new RegExp(name, "i") },
+        { lastName: new RegExp(name, "i") },
+      ],
+    };
+  }
+
+  const searchResult = await User.find(query);
 
   res.status(202).json({ users: searchResult });
 });
